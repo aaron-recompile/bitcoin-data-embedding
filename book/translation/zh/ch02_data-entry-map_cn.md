@@ -26,6 +26,8 @@
 
 ## 2.1 比特币交易的字节结构总览
 
+### 2.1.1 交易四大组成部分
+
 比特币的交易（Transaction）由四大块组成：
 
 ```
@@ -39,7 +41,75 @@ Locktime
 
 但需要明确：**数据实际存储的位置**与**创建数据结构的入口**可能不同。
 
-下面我们展开每一个部分。
+### 2.1.2 交易结构可视化
+
+在深入讨论各个数据入口之前，我们先建立一个完整的交易结构图景。
+
+**交易头部：**
+
+```
+┌─────────────────────────────────────────┐
+│ Version (4 bytes)                        │
+│ ─────────────────────────────────────── │
+│ Inputs Count (VarInt)                    │
+│ ─────────────────────────────────────── │
+│ Inputs[]                                 │
+│ ─────────────────────────────────────── │
+│ Outputs Count (VarInt)                  │
+│ ─────────────────────────────────────── │
+│ Outputs[]                                │
+│ ─────────────────────────────────────── │
+│ Locktime (4 bytes)                      │
+└─────────────────────────────────────────┘
+```
+
+**Inputs 结构：**
+
+```
+┌─────────────────────────────────────────┐
+│ Input #0                                │
+│ ├─ Previous TXID (32 bytes)            │
+│ ├─ Previous Vout (4 bytes)             │
+│ ├─ scriptSig Length (VarInt)           │
+│ ├─ scriptSig (📝 可嵌入数据 - Legacy)  │
+│ ├─ sequence (4 bytes)                  │
+│ └─ witness (📝 可嵌入数据 - SegWit)    │
+│    └─ [element_0, element_1, ...]      │
+│                                         │
+│ Input #1                                │
+│ └─ ...                                  │
+└─────────────────────────────────────────┘
+```
+
+**Outputs 结构：**
+
+```
+┌─────────────────────────────────────────┐
+│ Output #0                               │
+│ ├─ Value (8 bytes)                     │
+│ └─ scriptPubKey Length (VarInt)        │
+│    └─ scriptPubKey                     │
+│       ├─ OP_RETURN <data> (📝 方式1)   │
+│       ├─ Fake Multisig (📝 方式2)     │
+│       └─ 特殊脚本结构 (📝 方式3)      │
+│                                         │
+│ Output #1                               │
+│ └─ ...                                  │
+└─────────────────────────────────────────┘
+```
+
+### 2.1.3 数据入口标识说明
+
+**关键标记：**
+- 📝 表示可以嵌入任意数据的位置
+- Legacy 交易使用 scriptSig，SegWit/Taproot 交易使用 witness
+- Output 数据入口：OP_RETURN、Fake Multisig、特殊 scriptPubKey
+
+**关键区别：**
+- **数据在 Output**：数据创建时就永久可见，直接存储在 UTXO 集中
+- **数据在 Input Witness**：数据在解锁时才揭示，通过 witness 字段承载，享受 75% 成本折扣
+
+接下来的章节，我们将逐一剖析这些数据入口。
 
 ---
 
@@ -87,6 +157,20 @@ scriptSig 本质上是：
   - mempool policy 不鼓励把脚本当成数据箱
 
 因此：scriptSig 是"历史性的嵌入路径"，但仍然是数据入口之一。
+
+### 2.2.1 scriptSig 示例
+
+早期的彩色币协议（如 Colored Coins）会在 scriptSig 中嵌入数据。
+
+**历史背景：**
+- 2012-2014 年间，部分彩色币实现尝试在 scriptSig 中编码资产信息
+- 由于 scriptSig 会影响 TXID，这种方式容易导致交易可塑性（malleability）问题
+- 2017 年 SegWit 激活后，scriptSig 数据嵌入方式基本被废弃
+
+**现状：**
+- 现在已很少使用 scriptSig 作为数据载体
+- 现代协议主要使用 witness 或 OP_RETURN
+- 详见第 3 章关于彩色币的完整历史
 
 ### 2.2.2 witness —— 比特币史上最强大的数据载体
 
@@ -141,9 +225,43 @@ Witness 的限制主要来自两条：
 
 **Witness 是真正的"现代数据入口"。**
 
+### 2.2.3 实战案例：Ordinals 铭文交易
+
+**交易：** `6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799`
+
+[Mempool 链接](https://mempool.space/tx/6fb976ab49dcec017f1e201e84395983204ae1a7c2abf7ced0a85d692e442799)
+
+这是一个典型的 Ordinals 铭文交易，将 PNG 图片刻在比特币上。
+
+**Witness 结构：**
+
+```
+[0] Signature: 152b336f7b6fc69be82df72bb4653eed...
+
+[1] Script (Tapscript):
+    - OP_PUSH <internal pubkey>
+    - OP_CHECKSIG
+    - OP_FALSE OP_IF
+      OP_PUSH "ord"
+      OP_PUSH 0x01
+      OP_PUSH "image/png"
+      OP_0
+      OP_PUSHDATA2 [完整PNG数据 ~2KB]
+      OP_ENDIF
+
+[2] Control Block: c04a3ca2cf35f7902df1215f...
+```
+
+**关键点：**
+
+- 数据被包裹在 `OP_FALSE OP_IF ... OP_ENDIF` envelope 中
+- 这段代码永远不会被执行（因为 OP_FALSE）
+- 但数据永久存储在区块链上
+- 享受 witness 的 75% 成本折扣
+
 ---
 
-## 2.3 Output 的数据入口：数据直接存储在 Output
+## 2.3 Output 的数据入口：两种根本模式
 
 Output 结构是：
 
@@ -154,7 +272,40 @@ Output 结构是：
 }
 ```
 
-**本节讨论的是数据直接存储在 scriptPubKey 中的情况**，即数据在创建时就永久可见，存储在 UTXO 集中。
+**关键理解：** 所有 Output 数据都存储在 `scriptPubKey` 字段中，但有两种根本不同的模式。
+
+### 模式 A：数据直接存储（Data-in-ScriptPubKey）
+
+数据直接暴露在 scriptPubKey 中，创建时永久可见，存储在 UTXO 集中。
+
+**包含三种方式：**
+
+1. **OP_RETURN** - scriptPubKey 的内容就是 `OP_RETURN <data>`（专门用于数据嵌入）
+2. **Bare Multisig** - 将数据编码为"假公钥"放入多签脚本中
+3. **scriptPubKey 本体** - 将数据伪装成可执行的脚本结构（如 `<push data> OP_DROP ...`）
+
+**特点：**
+- 数据创建时就永久可见
+- 直接存储在 UTXO 集中
+- 无成本折扣（4 WU/byte）
+
+### 模式 B：承诺存储（Commitment-in-ScriptPubKey）
+
+scriptPubKey 只包含承诺（hash 或 tweaked pubkey），实际数据在后续 Input 中揭示。
+
+**包含两种方式：**
+
+1. **P2SH/P2WSH** - Hash 承诺（详见 2.4 节）
+2. **Taproot** - Merkle root 承诺（详见 2.4 节）
+
+**特点：**
+- Output 小巧（只有承诺）
+- 数据在 Input witness/scriptSig 中揭示
+- 享受 witness 折扣（1 WU/byte）
+
+---
+
+**本节（2.3）详细展开模式 A（数据直接存储），模式 B（承诺存储）在 2.4 节展开。**
 
 ### 2.3.1 OP_RETURN —— 最直接的数据入口（"明目张胆写数据"的方式）
 
@@ -208,7 +359,89 @@ OP_RETURN 是：
 - ✔ 也是最被 Core 开发者警惕的入口
 - ✔ 同时是 Omni、Counterparty（后期）、Runes 的基础
 
-### 2.3.2 scriptPubKey 本体 —— "数据伪装成脚本"
+### 2.3.1 OP_RETURN 示例 - USDT (Omni Layer)
+
+**交易：** `21c3354ab4422faca43761826884bb4398871a2c404a2fff71be91c9502d3ba0`
+
+[Mempool 链接](https://mempool.space/tx/21c3354ab4422faca43761826884bb4398871a2c404a2fff71be91c9502d3ba0)
+
+这是一个典型的 USDT 转账交易（基于 Omni 协议）。
+
+**Output #1 (OP_RETURN):**
+
+```
+scriptPubKey hex:
+6a146f6d6e69000000000000001f000000003b9aca00
+
+解析：
+6a          = OP_RETURN
+14          = PUSH 20 bytes
+6f6d6e69    = "omni" (ASCII)
+00000000    = Transaction version
+0000001f    = Transaction type (Simple Send)
+0000001f    = Property ID 31 (USDT)
+000000003b9aca00 = 金额 (10.00000000 USDT)
+```
+
+**关键点：**
+
+- OP_RETURN output 的 value 为 0
+- 最多 80 字节数据（v30 之前）
+- 协议解析器读取这些字节来理解转账意图
+- 这是 Omni Layer 协议的标准格式
+
+### 2.3.2 Bare Multisig —— 把数据塞成"假的公钥"
+
+比如：
+
+```
+OP_1 <fake_pubkey> <fake_pubkey> <fake_pubkey> OP_3 OP_CHECKMULTISIG
+```
+
+一个公钥是 33 bytes
+一个多签可以放 N 个公钥
+这些公钥可以是任意字节
+→ **Stamp 协议就是这样做的。**
+
+**数据位置：直接在 Output 的 scriptPubKey 中（假公钥）**
+
+这条路径极其强大，但也极其危险。
+
+Consensus 允许，policy 早期允许，后来不鼓励。
+
+**为什么 Stamps 选择这种方式？**
+
+- 想让数据永久在 output（UTXO 集）
+- 不想依赖 witness（早期 Stamps 设计时 witness 还未普及）
+- 数据创建时就可见，不需要解锁
+
+### 2.3.3 Fake Multisig 示例 - Stamp 协议
+
+**交易：** `b1278acf50c27342753d01af9013a709509fdd920bc40ddcbec0738aaec2764c`
+
+[Mempool 链接](https://mempool.space/tx/b1278acf50c27342753d01af9013a709509fdd920bc40ddcbec0738aaec2764c)
+
+Stamp 协议使用"假公钥"在 UTXO 中嵌入数据。
+
+**特点：**
+
+- 创建多个小额 output（通常 330-546 sats）
+- 每个 output 的 scriptPubKey 看起来像正常地址
+- 但公钥实际包含编码的图像数据
+- 数据永久存在于 UTXO 集中
+
+**示例 output 地址：**
+
+```
+bc1qapfywj2x8qukztqpcgqlxqqqqqqqqqrxqqq9zhp84vqqpq5t8lyqfvkk5y
+bc1q5m4ywq8lcgq0hlxylh7axqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsskk5xx9
+```
+
+**注意：** 地址中大量的 "q" 字符——这些是编码后的数据。
+
+Stamp 协议将图像数据编码为多个假公钥，每个公钥 33 bytes，通过多个 output 分散存储，确保数据永久存在于 UTXO 集中。
+
+### 2.3.3 scriptPubKey 本体 —— "数据伪装成脚本"
 
 任何脚本只要能正确执行，都可以存在。
 
@@ -237,30 +470,31 @@ OP_RETURN 是：
 
 所以不是主流数据嵌入方式。
 
-### 2.3.3 多签（multisig）—— 把数据塞成"假的公钥"
+### 2.3.4 实战案例对比
 
-比如：
+**OP_RETURN 示例 - USDT (Omni Layer)：**
 
-```
-OP_1 <fake_pubkey> <fake_pubkey> <fake_pubkey> OP_3 OP_CHECKMULTISIG
-```
+交易：`21c3354ab4422faca43761826884bb4398871a2c404a2fff71be91c9502d3ba0`
 
-一个公钥是 33 bytes
-一个多签可以放 N 个公钥
-这些公钥可以是任意字节
-→ **Stamp 协议就是这样做的。**
+- 数据直接暴露在 scriptPubKey 中
+- 80 字节限制（v30 之前）
+- 协议解析器直接读取
 
-**数据位置：直接在 Output 的 scriptPubKey 中（假公钥）**
+**Bare Multisig 示例 - Stamp 协议：**
 
-这条路径极其强大，但也极其危险。
+交易：`b1278acf50c27342753d01af9013a709509fdd920bc40ddcbec0738aaec2764c`
 
-Consensus 允许，policy 早期允许，后来不鼓励。
+- 数据编码为假公钥
+- 多个 output 分散存储
+- 数据永久存在于 UTXO 集中
 
-**为什么 Stamps 选择这种方式？**
+**对比总结：**
 
-- 想让数据永久在 output（UTXO 集）
-- 不想依赖 witness（早期 Stamps 设计时 witness 还未普及）
-- 数据创建时就可见，不需要解锁
+| 方式 | 数据位置 | 容量 | 成本 | Policy 接受度 |
+|------|---------|------|------|-------------|
+| OP_RETURN | Output scriptPubKey | 80 bytes (v29) / 100KB (v30+) | 4 WU/byte | ✔ 高 |
+| Bare Multisig | Output scriptPubKey | 中（每公钥 33 bytes） | 4 WU/byte | △ 低（Core 0.17+ 不中继） |
+| scriptPubKey 本体 | Output scriptPubKey | 理论上大 | 4 WU/byte | ❌ 低（非标准脚本） |
 
 ---
 
@@ -426,19 +660,47 @@ Ordinals、Atomicals、RGB、Taproot Assets 都依赖它。
 
 ---
 
-## 2.6 哪些字段不能写数据？
+## 2.6 哪些字段通常不作为自由数据空间？
 
-以下字段不适合作为数据输入：
+以下字段通常不用于嵌入任意数据：
 
-- **version**（共识-critical）
-- **locktime**（共识字段）
-- **sequence**（状态控制字段，但也是一种特殊的"时间数据"编码）
-  - BIP 68: 相对时间锁（CSV - CheckSequenceVerify）
-  - 虽然不能塞任意数据，但可以编码时间状态
-  - 这属于"结构化的数据编码"而非自由字节空间
-- **value**（货币单位）
+- **version** - 交易版本号（共识关键）
+- **locktime** - 时间锁（共识字段）
+- **value** - 金额（货币单位）
+- **sequence** - 序列号（见下文特殊说明）
 
-它们不是自由字节空间，不能滥用。
+### 2.6.1 特殊案例：sequence 字段
+
+**sequence 字段的设计用途：**
+
+- 原始用途：允许交易在确认前被替换（已废弃）
+- BIP 68：相对时间锁（CheckSequenceVerify）
+- 用于控制交易的时间锁逻辑
+
+**但历史上有过"滥用"案例：**
+
+早期的 EPOBC（Enhanced Padded Order-Based Coloring）协议曾经利用 sequence 的 32-bit 空间编码彩色币元数据。
+
+**示例：**
+
+```
+nSequence = 0xC0L0RFFF
+
+           ↑  ↑
+           |  └─ 颜色ID和金额
+           └─ 协议标记位
+```
+
+**为什么 EPOBC 失败了？**
+
+1. ❌ 每次转账都需要追溯到创世交易（效率低）
+2. ❌ 没有外部索引器就无法验证状态
+3. ❌ 与 BIP 68 时间锁功能冲突
+4. ❌ 数据空间太小（仅 32 bits）
+
+**教训：** sequence 不是设计用来存储任意数据的，但它证明了一个重要原则——**人们会尝试利用交易中的每一个字节**。
+
+详见第 3 章关于彩色币的完整历史。
 
 ---
 
@@ -651,4 +913,12 @@ Bitcoin Core vs Bitcoin Knots → 实现多样性
 每一个协议的本质，都是这些入口的**不同排列组合** + **不同解释层** + **数据位置的选择**。
 
 如果你看懂了 input 与 output 的所有可能性，以及数据实际存储的位置，你就看懂了比特币非交易数据的全部历史。
+
+---
+
+**下一章预告：** 
+
+从最早的彩色币开始，我们将看到人们如何一步步发现和利用这些数据入口，最终演化出今天的 Ordinals、Stamps 等协议。
+
+**实验部分：** 详见 Chapter 2 Part 2，我们将通过测试网实战展示从裸脚本到 Commit-Reveal 模式的完整演进。
 
