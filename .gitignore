@@ -1,0 +1,12 @@
+# Local backups / drafts
+book/manuscript/*_backup.md
+book/manuscript/*part*_experiments.md
+book/manuscript/*_copy-backup.md
+book/manuscript/*_V1_backup.md
+
+# Python cache
+__pycache__/
+code/**/__pycache__/
+
+# Local prompt notes
+prompt_AI.txt

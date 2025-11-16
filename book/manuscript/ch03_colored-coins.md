@@ -1,4 +1,4 @@
-# Chapter 3
+# Chapter 3 — Reconstructing Colored Coins
 
 ## Colored Coins — The First "Implicit Encoding" Attempt
 

@@ -1,4 +1,4 @@
-# Chapter 2
+# Chapter 2 — The Complete Map of Bitcoin Data Entry Points
 
 ## The Complete Map of Bitcoin Data Entry Points: Input vs Output Structure
 
