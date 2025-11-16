@@ -2,6 +2,8 @@
 
 *比特币上所有数据嵌入技术的可复现工程史*
 
+> **状态：** 早期草稿 — 章节正在撰写中，代码示例正在上线。欢迎反馈和提交 Issue。
+
 **English / [English Version](../../README.md)**
 
 ---
@@ -142,6 +144,8 @@ bitcoin-data-embedding/
 - `bitcoinlib` / `bitcoinutils`
 - Bitcoin Core（regtest 或 testnet）
 - 简单的命令行脚本
+
+> **注意：** `code/` 和 `tools/` 目录正在逐章填充中。在早期草稿中，某些路径可能尚未存在。
 
 ### 快速开始
 

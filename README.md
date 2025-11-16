@@ -2,6 +2,8 @@
 
 *A Reproducible Engineering History of All Data-Embedding Techniques on Bitcoin*
 
+> **Status:** Early draft — chapters are being written and code examples are coming online. Feedback and issues are very welcome.
+
 **中文版 / [Chinese Version](book/translation/zh/README_cn.md)**
 
 ---
@@ -142,6 +144,8 @@ All examples in the book are fully reproducible using:
 - `bitcoinlib` / `bitcoinutils`
 - Bitcoin Core (regtest or testnet)
 - Simple command-line scripts
+
+> **Note:** The `code/` and `tools/` directories are being filled in chapter by chapter. In early drafts, some paths may not exist yet.
 
 ### Quick Start
 
