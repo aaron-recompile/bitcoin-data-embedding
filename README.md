@@ -4,7 +4,7 @@
 
 > **Status:** Early draft — chapters are being written and code examples are coming online. Feedback and issues are very welcome.
 
-**中文版 / [Chinese Version](book/translation/zh/README_cn.md)**
+**中文版 / [Chinese Version](book/translation/zh/home_cn.md)**
 
 ---
 
