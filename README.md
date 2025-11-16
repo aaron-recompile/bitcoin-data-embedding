@@ -1,6 +1,6 @@
 # How People Tried to Push Non-Transaction Data into Bitcoin
 
-## A Reproducible Engineering History of All Data-Embedding Techniques on Bitcoin
+*A Reproducible Engineering History of All Data-Embedding Techniques on Bitcoin*
 
 **中文版 / [Chinese Version](book/translation/zh/README_cn.md)**
 
