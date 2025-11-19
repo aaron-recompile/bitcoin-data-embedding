@@ -1,4 +1,4 @@
-# Chapter 4
+# 第 4 章 —— Omni（Mastercoin）—— OP_RETURN 的第一次正式应用
 
 ## Omni（Mastercoin）—— OP_RETURN 的第一次正式应用
 

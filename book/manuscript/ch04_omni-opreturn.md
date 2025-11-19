@@ -1,4 +1,4 @@
-# Chapter 4
+# Chapter 4 — Omni (Mastercoin) — The First Formal Application of OP_RETURN
 
 ## Omni (Mastercoin) — The First Formal Application of OP_RETURN
 
