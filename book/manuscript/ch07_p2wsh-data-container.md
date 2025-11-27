@@ -1,4 +1,4 @@
-# Chapter 7
+# Chapter 7 P2WSH —— Scripts Become "Legitimate Data Containers"
 
 ## P2WSH —— Scripts Become "Legitimate Data Containers"
 
